@@ -14,6 +14,7 @@ import minijava.parser.Parser;
 import minijava.parser.ParserException;
 import minijava.postchecking.CustomParserException;
 import minijava.postchecking.IllegalStatementChecker;
+import minijava.printer.AstPrinter;
 
 /**
  * Main entry point for the expression parser.
@@ -30,8 +31,10 @@ public class Main {
 		if (args.length == 1) {
 			String filename = args[0];
 			try {
-				parseToAST(new File(filename));
+				Start ast = parseToAST(new File(filename));
 				System.out.print("Parse OK.");
+				System.out.println(AstPrinter.print(ast));
+
 			} catch (Exception e) {
 				e.printStackTrace();
 				System.exit(2);
