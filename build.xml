@@ -1,0 +1,244 @@
+<project name="MiniJavaCompiler" default="compile" basedir=".">
+	<!-- version of the template -->
+	<property name="spt.version" value="1.0" />
+
+    <!-- where to find user property file -->
+	<property name="userPropertyFile" location="userconfig.properties" />
+
+    <!-- error messages for missing user property file -->
+	<fail message="Property file '${userPropertyFile}' not found.">
+		<condition>
+			<not>
+				<available file="${userPropertyFile}" />
+			</not>
+		</condition>
+	</fail>
+
+	<!-- read user property file -->
+	<property file="${userPropertyFile}" />
+
+	<!-- where to find my libs -->
+	<property name="junit.jar.location" location="${library.jars.dir}/junit.jar" />
+	<property name="checkstyle.jar.location" location="${library.jars.dir}/checkstyle-5.6-all.jar" />
+	<property name="sablecc.jar.location" location="${library.jars.dir}/sablecc.jar" />
+
+	<!-- where to find checkstyle style file -->
+	<property name="checkstyle.config.file" value="checkstyle-config.xml" />
+
+    <!-- error messages for missing files and folders -->
+	<fail message="Tools folder '${library.jars.dir}' not found.">
+		<condition>
+			<not>
+				<available file="${library.jars.dir}" />
+			</not>
+		</condition>
+	</fail>
+	<fail message="Missing tool: '${junit.jar.location}'">
+		<condition>
+			<not>
+				<available file="${junit.jar.location}" />
+			</not>
+		</condition>
+	</fail>
+	<fail message="Missing tool: '${checkstyle.jar.location}'">
+		<condition>
+			<not>
+				<available file="${checkstyle.jar.location}" />
+			</not>
+		</condition>
+	</fail>
+	<fail message="Missing tool: '${sablecc.jar.location}'">
+		<condition>
+			<not>
+				<available file="${sablecc.jar.location}" />
+			</not>
+		</condition>
+	</fail>
+	<fail message="Missing tool: '${checkstyle.config.file}'">
+		<condition>
+			<not>
+				<available file="${checkstyle.config.file}" />
+			</not>
+		</condition>
+	</fail>
+
+
+	<!-- source dirs -->
+	<property name="src" value="src/" />
+	<property name="src.test" value="test/" />
+	<property name="grammar.dir" value="grammar/" />
+
+    <!-- generated sources dir -->
+	<property name="grammar.gensrc.dir" value="generated-src/" />
+
+	<!-- test data -->
+	<property name="testdata.dir" value="testdata/" />
+
+	<!-- bin dir -->
+	<property name="bin" location="bin" />
+
+	<!-- where to generate jar file -->
+	<property name="miniJava.jar" location="miniJava.jar" />
+
+	<!-- test report dirs -->
+	<property name="reports.dir" location="reports" />
+
+	<!-- checkstyle output -->
+	<property name="reports.checkstyle.dir" location="${reports.dir}/checkstyle" />
+	<property name="reports.checkstyle.file" location="${reports.checkstyle.dir}/checkstyle_report.xml" />
+
+	<!-- junit output -->
+	<property name="reports.junit.dir" location="${reports.dir}/junit" />
+
+	<!-- classpath -->
+	<path id="tools.classpath">
+		<pathelement path="${checkstyle.jar.location}" />
+		<pathelement path="${sablecc.jar.location}" />
+		<pathelement path="${junit.jar.location}" />
+		<pathelement path="${ant.core.lib}" />
+	</path>
+
+    <!-- The CheckStyle and SableCC tasks -->
+	<taskdef resource="checkstyletask.properties" classpathref="tools.classpath" />
+
+	<taskdef name="sablecc" classname="org.sablecc.ant.taskdef.Sablecc" classpathref="tools.classpath" />
+
+    <!-- targets -->
+	<target name="printenv" description="Print important configuration variables">
+		<echo>
+Some properties and their values:
+			
+ant.home = ${ant.home}
+ant.library.dir = ${ant.library.dir}
+user.home = ${user.home}
+			
+Derived from your per-user config file:
+library.jars.dir = ${library.jars.dir}
+sablecc.jar.location = ${sablecc.jar.location}
+junit.jar.location = ${junit.jar.location}
+			
+Derived from your per-project config file:
+mainclass = ${mainclass}
+submission.name = ${jarname}
+		</echo>
+	</target>
+
+	<target name="init" description="Initialize directories">
+		<tstamp />
+		<mkdir dir="${src}" />
+		<mkdir dir="${bin}" />
+		<mkdir dir="${src.test}" />
+		<mkdir dir="${grammar.gensrc.dir}" />
+		<mkdir dir="${reports.checkstyle.dir}" />
+		<mkdir dir="${reports.junit.dir}" />
+	</target>
+
+	<target name="clean" description="Remove all generated files">
+		<delete dir="${bin}" quiet="true" />
+		<delete dir="${reports.dir}" quiet="true" />
+		<delete dir="${reports.checkstyle.dir}" quiet="true" />
+		<delete file="${miniJava.jar}" quiet="true" />
+		<delete includeemptydirs="true">
+			<fileset dir="${grammar.gensrc.dir}" includes="**/*" />
+		</delete>
+	</target>
+
+
+	<target name="checkforchanges">
+		<uptodate targetfile="${grammar.gensrc.dir}/sablecc_touch" property="sablecc_nochanges">
+			<srcfiles dir="${grammar.dir}" includes="**/*.*" />
+		</uptodate>
+	</target>
+
+	<target name="generate_parser" depends="init, checkforchanges" unless="sablecc_nochanges" description="Generate Parser with SableCC">
+		<!-- delete the previously generated sources -->
+		<delete includeemptydirs="true">
+			<fileset dir="${grammar.gensrc.dir}" includes="**/*" />
+		</delete>
+		<!-- not using sablecc ant task, because it does not fail on errors -->
+		<!--<sablecc src="${grammar.dir}" outputdirectory="${grammar.gensrc.dir}" />-->
+		<java jar="${sablecc.jar.location}" fork="true" failonerror="true">
+			<arg value="-d"/>
+			<arg value="${grammar.gensrc.dir}"/>
+			<arg value="${grammar.dir}/minijava.sable"/>
+		</java>
+		<touch file="${grammar.gensrc.dir}/sablecc_touch" />
+	</target>
+
+	<target name="compile_parser" depends="generate_parser" description="Compile generated parser Java code to Classfiles">
+		<javac srcdir="${grammar.gensrc.dir}" destdir="${bin}" debug="on" includeantruntime="false">
+			<classpath>
+				<pathelement location="${sablecc.location}" />
+			</classpath>
+		</javac>
+	</target>
+
+	<target name="checkstyle" depends="" description="Run CheckStyle">
+		<checkstyle config="${checkstyle.config.file}" failOnViolation="true">
+			<fileset dir="${src}" />
+			<classpath>
+				<pathelement location="${bin}" />
+			</classpath>
+			<formatter type="xml" toFile="${reports.checkstyle.file}" />
+			<formatter type="plain" />
+		</checkstyle>
+	</target>
+
+    <target name="copy_automata" depends="generate_parser" description="copy lexer.dat and parser.dat to the bin directory">
+        <copy todir="${bin}">
+            <fileset dir="${grammar.gensrc.dir}" includes="**/*.dat" />
+        </copy>
+    </target>
+
+	<target name="compile" depends="init, compile_parser, copy_automata">
+		<javac srcdir="${src}" destdir="${bin}" debug="on" includeantruntime="false">
+			<classpath>
+				<pathelement location="${junit.jar.location}" />
+			</classpath>
+		</javac>
+	</target>
+
+	<target name="compile_tests" depends="compile">
+		<javac srcdir="${src.test}" destdir="${bin}" debug="on" includeantruntime="false">
+			<classpath>
+				<pathelement location="${junit.jar.location}" />
+				<pathelement location="${bin}" />
+			</classpath>
+		</javac>
+	</target>
+
+	<target name="test" depends="compile_tests" description="Run parser on test data">
+		<junit printsummary="yes" fork="true">
+			<classpath>
+				<pathelement location="${junit.jar.location}" />
+				<pathelement location="${bin}" />
+			</classpath>
+			<batchtest todir="${reports.junit.dir}">
+				<fileset dir="${src}" includes="**/test/*.java" />
+				<fileset dir="${src.test}" includes="**/*.java" excludes="**/LabeledParameterized.java" />
+			</batchtest>
+			<formatter type="brief" usefile="false" />
+			<formatter type="xml" />
+		</junit>
+		<junitreport todir="${reports.junit.dir}">
+			<fileset dir="${reports.junit.dir}">
+				<include name="TEST*.xml" />
+			</fileset>
+			<report format="noframes" todir="${reports.junit.dir}/html" />
+		</junitreport>
+		<echo message="A html test report has been generated in file://${reports.junit.dir}/html/junit-noframes.html" />
+	</target>
+	
+	<target name="javadoc" depends="" description="Generate javadoc">
+		<javadoc sourcepath="${src}" classpath="${bin}"
+	destdir="${reports.dir}/javadoc"/>
+	</target>
+	
+	<target name="jar" depends="test, checkstyle">
+		<jar destfile="${miniJava.jar}" basedir="${bin}">
+			<manifest>
+				<attribute name="Main-Class" value="minijava.main.Main"/>
+			</manifest>
+		</jar>
+	</target>
+</project>
