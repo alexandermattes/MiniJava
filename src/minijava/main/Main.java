@@ -12,6 +12,9 @@ import minijava.lexer.LexerException;
 import minijava.node.Start;
 import minijava.parser.Parser;
 import minijava.parser.ParserException;
+import minijava.postchecking.CustomParserException;
+import minijava.postchecking.IllegalStatementChecker;
+
 /**
  * Main entry point for the expression parser.
  */
@@ -41,44 +44,69 @@ public class Main {
 
 	/**
 	 * Parse the file and create the AST
-	 * @param file the file to parse
+	 * 
+	 * @param file
+	 *            the file to parse
 	 * @return an AST
-	 * @throws FileNotFoundException if the file is not found
-	 * @throws ParserException in case of syntax errors
-	 * @throws LexerException in case of syntax errors
-	 * @throws IOException in case of file IO errors
+	 * @throws FileNotFoundException
+	 *             if the file is not found
+	 * @throws CustomParserException
+	 *             when there is a syntax error (Bad assignment or method call)
+	 * @throws ParserException
+	 *             in case of syntax errors
+	 * @throws LexerException
+	 *             in case of syntax errors
+	 * @throws IOException
+	 *             in case of file IO errors
 	 */
-	public static Start parseToAST(File file)
-			throws FileNotFoundException, ParserException, LexerException, IOException {
+	public static Start parseToAST(File file) 
+			throws FileNotFoundException, CustomParserException, ParserException, LexerException, IOException {
 		PushbackReader reader = new PushbackReader(new FileReader(file));
 		return parseToAST(reader);
 	}
 
 	/**
-	 * Takes a reader and parses it to an AST
-	 * @param reader the input reader
+	 * Takes a reader and parses it to an AST, it also perform a post checking
+	 * of the AST.
+	 * 
+	 * @param reader
+	 *            the input reader
 	 * @return the AST
-	 * @throws ParserException when there is a syntax error
-	 * @throws LexerException when there is a lexical syntax error
-	 * @throws IOException when the input cannot be read
+	 * @throws CustomParserException
+	 *             when there is a syntax error (Bad assignment or method call)
+	 * @throws ParserException
+	 *             when there is a syntax error
+	 * @throws LexerException
+	 *             when there is a lexical syntax error
+	 * @throws IOException
+	 *             when the input cannot be read
 	 */
 	public static Start parseToAST(PushbackReader reader) 
-			throws ParserException, LexerException, IOException {
+			throws CustomParserException, ParserException, LexerException, IOException {
 		Lexer lexer = new Lexer(reader);
 		Parser parser = new Parser(lexer);
 		Start ast = parser.parse();
+		ast.apply(new IllegalStatementChecker());
 		return ast;
 	}
 
 	/**
 	 * Takes a reader and parses it to an AST
-	 * @param input the input as a string
+	 * 
+	 * @param input
+	 *            the input as a string
 	 * @return the AST
-	 * @throws ParserException when there is a syntax error
-	 * @throws LexerException when there is a lexical syntax error
-	 * @throws IOException when the input cannot be read
+	 * @throws CustomParserException
+	 *             when there is a syntax error (Bad assignment or method call)
+	 * @throws ParserException
+	 *             when there is a syntax error
+	 * @throws LexerException
+	 *             when there is a lexical syntax error
+	 * @throws IOException
+	 *             when the input cannot be read
 	 */
-	public static Start parseToAST(String input) throws ParserException, LexerException, IOException {
+	public static Start parseToAST(String input) 
+			throws CustomParserException, ParserException, LexerException, IOException {
 		return parseToAST(new PushbackReader(new StringReader(input)));
 	}
 }
