@@ -1,0 +1,290 @@
+/* minijava.sable - Specification of Minijava grammar. */
+Package minijava;
+
+
+
+Helpers
+    unicode_input_character = [0..0xffff];
+    ht  = 0x0009;
+    lf  = 0x000a;
+    ff  = 0x000c;
+    cr  = 0x000d;
+    sp  = ' ';
+
+    line_terminator = lf | cr | cr lf;
+    
+    digit = ['0'..'9'] ;
+    alpha = ['a'..'z'] | ['A'..'Z'] ;
+
+    mlccontent = ([unicode_input_character - '*']* ('*' [unicode_input_character - '/'])?)* '*'?;
+    noeol = [unicode_input_character - [cr + lf]];
+
+
+
+Tokens
+    white_space = sp | ht | line_terminator;
+    
+    slc = '/' '/' noeol* line_terminator?; // single line comment
+    mlc = '/' '*' mlccontent '*' '/'; // multi line comment
+    
+    clazz   = 'class';
+    public  = 'public';
+    static  = 'static';
+    void    = 'void';
+    main    = 'main';
+    extends = 'extends';    
+    return  = 'return';
+    
+    int     = 'int';
+    boolean = 'boolean';
+    string  = 'String';
+    
+    if      = 'if';
+    else    = 'else';
+    
+    while   = 'while';
+    
+    true    = 'true';
+    false   = 'false';
+    this    = 'this';
+    new     = 'new';
+    
+    l_par   = '(';
+    r_par   = ')';
+    l_curly = '{';
+    r_curly = '}';
+    l_br    = '[';
+    r_br    = ']';
+    assign  = '=';
+    dot     = '.';
+    comma   = ',';
+    semi    = ';';
+    excl    = '!';
+    and     = '&&';
+    plus    = '+';
+    minus   = '-';
+    star    = '*';
+    less    = '<';
+    
+    id      = alpha (alpha | digit | '_' )*;
+    integer = digit+;
+
+
+
+Ignored Tokens
+    white_space, slc, mlc;
+
+
+
+Productions
+    program { -> program } 
+        = [main]:main_class [others]:class_decl*
+            { -> New program(main.main_class, [others.class_decl])}
+        ;
+    
+    main_class { -> main_class } 
+        = clazz [name]:id [l_c_outer]:l_curly 
+          public static void main l_par  string l_br r_br [main_args]:id r_par [l_c_inner]:l_curly 
+          [local_vars]:var_decl* [stms]:stmt* [r_c_inner]:r_curly [r_c_outer]:r_curly
+            { -> New main_class(name, main_args, [local_vars.typed_var], [stms.stmt])}
+        ;
+    
+    class_decl { -> class_decl } 
+        = {noextends} clazz [ident]:id l_curly [fields]:var_decl* [methods]:method_decl* r_curly
+            { -> New class_decl(ident, Null, [fields.typed_var], [methods.method_decl])}
+        | {extends} clazz [ident]:id extends [super]:id l_curly [fields]:var_decl* [methods]:method_decl* r_curly
+            { -> New class_decl(ident, super, [fields.typed_var], [methods.method_decl])}
+        ;
+    
+    var_decl { -> typed_var } 
+        = [type]:type [name]:id semi
+            { -> New typed_var(type.type, name)}
+        ;
+    
+    method_decl { -> method_decl } 
+        = public [ret_type]:type [name]:id l_par [formal_params]:param_list? r_par l_curly 
+          [local_vars]:var_decl* [stmts]:stmt* return [ret_exp]:exp semi r_curly
+            { -> New method_decl(ret_type.type, name, [formal_params.typed_var], [local_vars.typed_var], [stmts.stmt], ret_exp.exp)}
+        ;
+    
+    param_list { -> typed_var* } 
+        = [type]:type [name]:id [rest]:param_rest*
+            { -> [New typed_var(type.type, name), rest.typed_var]}
+        ;
+    
+    param_rest { -> typed_var } 
+        = comma [type]:type [name]:id
+            { -> New typed_var(type.type, name)}
+        ;
+    
+    type { -> type } 
+        = {intarray} int l_br r_br
+            { -> New type.intarray()}
+        | {bool} boolean
+            { -> New type.bool()}
+        | {int} int
+            { -> New type.int()}
+        | {class} [name]:id
+            { -> New type.class(name)}
+        ;
+    
+    stmt { -> stmt } 
+        = {block} l_curly [stmts]:stmt* r_curly
+            { -> New stmt.block([stmts.stmt])}
+        | {if} if l_par [cond]:exp r_par [tstmt]:stmt else [fstmt]:stmt
+            { -> New stmt.if(cond.exp, tstmt.stmt, fstmt.stmt)}
+        | {while} while l_par [cond]:exp r_par [body]:stmt
+            { -> New stmt.while(cond.exp, body.stmt)}
+        | {call} [expression]:exp semi
+            { -> New stmt.call(expression.exp)}
+        | {assign} [lhs]:exp assign [rhs]:exp semi
+            { -> New stmt.assign(lhs.exp, rhs.exp)}
+        ;
+    
+    exp { -> exp } 
+        = {and} [and]:and_exp
+            { -> and.exp}
+        ;
+        
+    and_exp { -> exp } 
+        = {and} [left]:and_exp and [right]:cmp_exp
+            { -> New exp.and(left.exp, right.exp)}
+        | {cmp_exp} [cmp]:cmp_exp
+            { -> cmp.exp}
+        ;
+
+    cmp_exp { -> exp } 
+        = {less} [left]:cmp_exp less [right]:add_exp
+            { -> New exp.cmp(left.exp, right.exp)}
+        | {add_exp} [add]:add_exp
+            { -> add.exp}
+        ;
+        
+    add_exp { -> exp } 
+        = {add} [left]:add_exp plus [right]:mult_exp
+            { -> New exp.add(left.exp, right.exp)}
+        | {sub} [left]:add_exp minus [right]:mult_exp
+            { -> New exp.sub(left.exp, right.exp)}
+        | {mult_exp} [mult]:mult_exp
+            { -> mult.exp}
+        ;
+        
+    mult_exp { -> exp } 
+        = {mult} [left]:mult_exp star [right]:unary_exp
+            { -> New exp.mult(left.exp, right.exp)}
+        | {unary_exp} [unary]:unary_exp   
+            { -> unary.exp}
+        ;
+        
+    unary_exp { -> exp } 
+        = {not} excl [content]:unary_exp 
+            { -> New exp.not(content.exp)}
+        | {neg} minus [content]:unary_exp
+            { -> New exp.neg(content.exp)}
+        | {dot_exp} [dot]:dot_exp
+            { -> dot.exp}
+        ;    
+        
+    dot_exp { -> exp } 
+        = {field_access} [obj]:dot_exp dot [name]:id
+            { -> New exp.field_access(obj.exp, name)}
+        | {method_call} [obj]:dot_exp dot [name]:id l_par [args]:exp_list? r_par
+            { -> New exp.method_call(obj.exp, name, [args.exp])}
+        | {array_lookup_exp} [array_lookup]:array_lookup_exp
+            { -> array_lookup.exp}
+        ;
+          
+    array_lookup_exp { -> exp } 
+        = {array_lookup} [array]:dot_exp l_br [offset]:exp r_br
+            { -> New exp.array_lookup(array.exp, offset.exp)}
+        | {new_exp} [new]:new_exp
+            { -> new.exp}
+        ;
+        
+    new_exp { -> exp } 
+        = {array_alloc} new int l_br [size]:exp r_br
+            { -> New exp.array_alloc(size.exp)}
+        | {obj_alloc} new [name]:id l_par r_par
+            { -> New exp.obj_alloc(name)}
+        | {const_exp} [const]:const_exp
+            { -> const.exp}
+        ;
+        
+    const_exp { -> exp}
+        = {true} true
+            { -> New exp.true()}
+        | {false} false
+            { -> New exp.false()}
+        | {identifier} [name]:id
+            { -> New exp.identifier(name)}
+        | {int_literal} [value]:integer
+            { -> New exp.int_literal(value)}
+        | {this} this
+            { -> New exp.this()}
+        | {par} l_par [content]:exp r_par
+            { -> content.exp}
+        ;
+    
+    exp_list { -> exp* } 
+        = [expression]:exp [rest]:exp_rest_list
+            { -> [expression.exp, rest.exp]}
+        ;
+    
+    exp_rest { -> exp } 
+        = comma [expression]:exp
+            { -> expression.exp}
+        ;
+    
+    exp_rest_list { -> exp* }
+        = {empty}
+            { -> [] }
+        | {notempty} [exp]:exp_rest [list]:exp_rest_list
+            { -> [exp.exp, list.exp] }
+        ;
+
+
+
+Abstract Syntax Tree
+
+    program     = [main]:main_class [decls]:class_decl*;
+    
+    main_class  = [id]:id [main_args]:id [local_vars]:typed_var* [stms]:stmt*;
+        
+    class_decl  = [id]:id [super]:id? [fields]:typed_var* [methods]:method_decl*;    
+
+    typed_var   = [type]:type [name]:id;
+
+    method_decl = [ret_type]:type [name]:id [formal_params]:typed_var* 
+                  [local_vars]:typed_var* [stmts]:stmt* [ret_exp]:exp ;
+
+    type = {intarray} 
+         | {bool} 
+         | {int} 
+         | {class}  [name]:id
+         ;
+
+    stmt = {block}  [stmts]:stmt* 
+         | {assign} [lhs]:exp   [rhs]:exp  
+         | {if}     [cond]:exp  [tstmt]:stmt [fstmt]:stmt
+         | {while}  [cond]:exp  [body]:stmt
+         | {call}   exp
+         ;
+
+    exp = {and}          [left]:exp [right]:exp
+        | {cmp}          [left]:exp [right]:exp 
+        | {add}          [left]:exp [right]:exp
+        | {sub}          [left]:exp [right]:exp
+        | {mult}         [left]:exp [right]:exp
+        | {not}          exp
+        | {neg}          exp
+        | {int_literal}  integer
+        | {identifier}   [name]:id
+        | {array_alloc}  [size]:exp
+        | {obj_alloc}    [name]:id
+        | {array_lookup} exp        [offset]:exp
+        | {field_access} [obj]:exp  [name]:id 
+        | {method_call}  [obj]:exp  [name]:id [args]:exp* 
+        | {true}  
+        | {false} 
+        | {this} 
+        ;
